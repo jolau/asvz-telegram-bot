@@ -5,8 +5,10 @@ import argparse
 import getpass
 import json
 import logging
+import queue
 import time
 from datetime import datetime, timedelta
+import logging.handlers
 from pathlib import Path
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -213,35 +215,21 @@ class AsvzEnroller:
             options=options,
         )
 
-    @staticmethod
-    def wait_until(enrollment_start):
-        current_time = datetime.today()
-
-        logging.info(
-            "\n\tcurrent time: {}\n\tenrollment time: {}".format(
-                current_time.strftime("%H:%M:%S"), enrollment_start.strftime("%H:%M:%S")
-            )
-        )
-
-        login_before_enrollment_seconds = 1 * 59
-        if (enrollment_start - current_time).seconds > login_before_enrollment_seconds:
-            sleep_time = (
-                enrollment_start - current_time
-            ).seconds - login_before_enrollment_seconds
-            logging.info(
-                "Sleep for {} seconds until {}".format(
-                    sleep_time,
-                    (current_time + timedelta(seconds=sleep_time)).strftime("%H:%M:%S"),
-                )
-            )
-            time.sleep(sleep_time)
-
-    def __init__(self, chromedriver, lesson_url, creds):
+    def __init__(self, chromedriver, lesson_url, creds, logging_queue):
         self.chromedriver = chromedriver
         self.lesson_url = lesson_url
         self.creds = creds
 
-        logging.info(
+        self.logger = logging.getLogger("asvz_enroller")
+
+        self.logger.addHandler(logging.StreamHandler())
+        self.logger.setLevel(logging.DEBUG)
+
+        queue_handler = logging.handlers.QueueHandler(logging_queue)
+        self.logger.addHandler(queue_handler)
+        self.logger.setLevel(logging.INFO)
+
+        self.logger.info(
             "Summary:\n\tOrganisation: {}\n\tUsername: {}\n\tPassword: {}\n\tLesson: {}".format(
                 self.creds[CREDENTIALS_ORG],
                 self.creds[CREDENTIALS_UNAME],
@@ -253,43 +241,43 @@ class AsvzEnroller:
         self.__get_enrollment_and_start_time()
 
     def enroll(self):
-        logging.info("Checking login credentials")
+        self.logger.info("Checking login credentials")
         try:
             driver = AsvzEnroller.get_driver(self.chromedriver)
             driver.get(self.lesson_url)
             driver.implicitly_wait(3)
             self.__organisation_login(driver)
         except NoSuchElementException as e:
-            logging.error(NO_SUCH_ELEMENT_ERR_MSG)
+            self.logger.error(NO_SUCH_ELEMENT_ERR_MSG)
             raise e
         finally:
             if driver is not None:
                 driver.quit()
 
         if datetime.today() < self.enrollment_start:
-            AsvzEnroller.wait_until(self.enrollment_start)
+            self.__wait_until_enrollment_start()
 
         try:
             driver = AsvzEnroller.get_driver(self.chromedriver)
             driver.get(self.lesson_url)
             driver.implicitly_wait(3)
 
-            logging.info("Starting enrollment")
+            self.logger.info("Starting enrollment")
 
             enrolled = False
             while not enrolled:
                 if self.enrollment_start < datetime.today():
-                    logging.info(
+                    self.logger.info(
                         "Enrollment is already open. Checking for available places."
                     )
                     self.__wait_for_free_places(driver)
 
-                logging.info("Lesson has free places")
+                self.logger.info("Lesson has free places")
 
                 self.__organisation_login(driver)
 
                 try:
-                    logging.info("Waiting for enrollment")
+                    self.logger.info("Waiting for enrollment")
                     WebDriverWait(driver, 5 * 60).until(
                         EC.element_to_be_clickable(
                             (
@@ -300,12 +288,12 @@ class AsvzEnroller:
                     ).click()
                     time.sleep(5)
                 except TimeoutException as e:
-                    logging.info(
+                    self.logger.info(
                         "Place was already taken in the meantime. Rechecking for available places."
                     )
                     continue
 
-                logging.info("Successfully enrolled. Train hard and have fun!")
+                self.logger.info("Successfully enrolled. Train hard and have fun!")
                 enrolled = True
 
         except NoSuchElementException as e:
@@ -314,6 +302,7 @@ class AsvzEnroller:
         finally:
             if driver is not None:
                 driver.quit()
+            return False
 
     def __get_enrollment_and_start_time(self):
         driver = None
@@ -472,6 +461,27 @@ class AsvzEnroller:
             )
             time.sleep(retry_interval_sec)
             driver.refresh()
+
+    def __wait_until_enrollment_start(self):
+        current_time = datetime.today()
+        self.logger.info(
+            "\n\tcurrent time: {}\n\tenrollment time: {}".format(
+                current_time.strftime("%H:%M:%S"), self.enrollment_start.strftime("%H:%M:%S")
+            )
+        )
+
+        login_before_enrollment_seconds = 1 * 59
+        if (self.enrollment_start - current_time).seconds > login_before_enrollment_seconds:
+            sleep_time = (
+                self.enrollment_start - current_time
+            ).seconds - login_before_enrollment_seconds
+            self.logger.info(
+                "Sleep for {} seconds until {}".format(
+                    sleep_time,
+                    (current_time + timedelta(seconds=sleep_time)).strftime("%H:%M:%S"),
+                )
+            )
+            time.sleep(sleep_time)
 
 
 def validate_start_time(start_time):
