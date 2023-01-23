@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.2] - 21.01.23
+
+### Fixed
+
+- Adapt bot to work with the newest ASVZ website. The enrollment time location has changed and some small components were updated (#15).
+
 ## [1.4.1] - 03.11.22
 
 ### Fixed
