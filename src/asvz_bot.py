@@ -19,7 +19,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
-from webdriver_manager.utils import ChromeType
+#from webdriver_manager.utils import ChromeType
+from pyvirtualdisplay import Display
 
 TIMEFORMAT = "%H:%M"
 
@@ -438,6 +439,7 @@ class AsvzEnroller:
             logging.info("Valid login credentials")
 
     def __wait_for_free_places(self, driver):
+        first = True
         while True:
             try:
                 driver.find_element(
@@ -454,11 +456,17 @@ class AsvzEnroller:
                 )
 
             retry_interval_sec = 1 * 30
-            logging.info(
-                "Lesson is booked out. Rechecking in {} secs..".format(
-                    retry_interval_sec
+            if first:
+                self.logger.info(
+                    "Lesson is full. Will retry."
                 )
-            )
+                first = False
+            else:
+                logging.info(
+                    "Lesson is booked out. Rechecking in {} secs..".format(
+                        retry_interval_sec
+                    )
+                )
             time.sleep(retry_interval_sec)
             driver.refresh()
 
@@ -492,24 +500,24 @@ def validate_start_time(start_time):
         raise argparse.ArgumentTypeError(msg)
 
 
-def get_chromedriver():
-    webdriver_manager = None
-    try:
-        webdriver_manager = ChromeDriverManager(chrome_type=ChromeType.CHROMIUM)
-    except:
-        webdriver_manager = None
-
-    if webdriver_manager is None:
-        try:
-            webdriver_manager = ChromeDriverManager(chrome_type=ChromeType.GOOGLE)
-        except:
-            webdriver_manager = None
-
-    if webdriver_manager is None:
-        logging.error("Failed to find chrome/chromium")
-        exit(1)
-
-    return webdriver_manager.install()
+# def get_chromedriver():
+#     webdriver_manager = None
+#     try:
+#         webdriver_manager = ChromeDriverManager(chrome_type=ChromeType.CHROMIUM)
+#     except:
+#         webdriver_manager = None
+#
+#     if webdriver_manager is None:
+#         try:
+#             webdriver_manager = ChromeDriverManager(chrome_type=ChromeType.GOOGLE)
+#         except:
+#             webdriver_manager = None
+#
+#     if webdriver_manager is None:
+#         logging.error("Failed to find chrome/chromium")
+#         exit(1)
+#
+#     return webdriver_manager.install()
 
 
 def main():
@@ -589,7 +597,8 @@ def main():
         logging.error(e)
         exit(1)
 
-    chromedriver = get_chromedriver()
+    # chromedriver = get_chromedriver()
+    chromedriver = None
 
     enroller = None
     if args.type == "lesson":

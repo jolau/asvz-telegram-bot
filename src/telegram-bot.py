@@ -1,17 +1,23 @@
+#!/home/pi/asvz-telegram-bot/src/.venv/bin/python3
+
 import argparse
 import logging
 import multiprocessing
 import re
 import threading
 import time
-from time import sleep
 
+import selenium
+from selenium import webdriver
+from pyvirtualdisplay import Display
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from telegram import Update, MessageEntity
 from telegram.constants import MessageEntityType
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 import asvz_bot
 
-chromedriver = None
+#chromedriver = None
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -33,7 +39,7 @@ async def enroll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         lesson_id = url.group(1)
         lesson_url = "{}/tn/lessons/{}".format(asvz_bot.LESSON_BASE_URL, lesson_id)
         logging_queue = multiprocessing.Queue()
-        enroller = asvz_bot.AsvzEnroller(chromedriver, lesson_url, creds, logging_queue)
+        enroller = asvz_bot.AsvzEnroller('/usr/lib/chromium-browser/chromedriver', lesson_url, creds, logging_queue)
         #enroller.enroll()
         t = threading.Thread(target=enroller.enroll)
         t.start()
@@ -77,8 +83,6 @@ if __name__ == "__main__":
     except asvz_bot.AsvzBotException as e:
         logging.error(e)
         exit(1)
-
-    chromedriver = asvz_bot.get_chromedriver()
 
     # Create the bot
     app = ApplicationBuilder().token(args.token).build()
